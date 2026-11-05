@@ -1,10 +1,41 @@
-TARGET := pokemon_world
-BUILD := build
-SOURCES := $(wildcard source/*.c)
-OBJECTS := $(SOURCES:source/%.c=$(BUILD)/%.o)
+ifeq ($(strip $(DEVKITPRO)),)
+$(error DEVKITPRO is not set)
+endif
 
-all:
-	@echo "3DS build setup pending"
+include $(DEVKITARM)/3ds_rules
+
+TARGET := pokemon_world
+SOURCES := source
+BUILD := build
+
+ARCH := -march=armv6k -mtune=mpcore -mfloat-abi=hard -mtp=soft
+
+CFLAGS := -g -Wall -O2 -mword-relocations \
+          -ffunction-sections -fdata-sections \
+          $(ARCH) -D__3DS__ \
+          -I$(DEVKITPRO)/libctru/include
+
+LDFLAGS := -specs=3dsx.specs -g $(ARCH) \
+           -L$(DEVKITPRO)/libctru/lib
+
+LIBS := -lctru -lm
+
+CFILES := $(wildcard $(SOURCES)/*.c)
+OFILES := $(patsubst $(SOURCES)/%.c,$(BUILD)/%.o,$(CFILES))
+
+.PHONY: all clean
+
+all: $(TARGET).3dsx
+
+$(BUILD)/%.o: $(SOURCES)/%.c
+	mkdir -p $(BUILD)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(TARGET).elf: $(OFILES)
+	$(CC) $(LDFLAGS) $^ $(LIBS) -o $@
+
+$(TARGET).3dsx: $(TARGET).elf
+	3dsxtool $< $@
 
 clean:
-	rm -rf $(BUILD)
+	rm -rf $(BUILD) $(TARGET).elf $(TARGET).3dsx $(TARGET).map
