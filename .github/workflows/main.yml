@@ -3,20 +3,22 @@ name: Build Pokemon World
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches:
+      - main
 
 jobs:
   build:
     runs-on: ubuntu-latest
+
     container:
       image: devkitpro/devkitarm
       options: --user 1001
 
     steps:
-      - name: Checkout
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Build 3DS game
+      - name: Build Pokemon World
         run: make -j$(nproc --all)
 
       - name: Upload 3DSX
