@@ -44,7 +44,7 @@ static const char *mapRows[MAP_H] = {
     "#......####........#",
     "#..................#",
     "#....H.............#",
-    "#..................#",
+    "#.........N........#",
     "#.............P....#",
     "#..................#",
     "#..####............#",
@@ -52,6 +52,9 @@ static const char *mapRows[MAP_H] = {
     "#..................#",
     "####################"
 };
+
+#define NPC_X 10
+#define NPC_Y 5
 
 static const char *mainItems[] = {
     "Pokemon",
@@ -147,12 +150,18 @@ static void interact(int x, int y, Direction dir, char *notice) {
 
     char target = mapRows[ty][tx];
 
-    if (target == 'H')
+    if (target == 'H') {
         snprintf(notice, 100, "You found a House!");
-    else if (target == 'P')
-        snprintf(notice, 100, "Pokemon Center!");
-    else
+    }
+    else if (target == 'P') {
+        snprintf(notice, 100, "Welcome to Pokemon Center!");
+    }
+    else if (target == 'N') {
+        snprintf(notice, 100, "Hello, Trainer! Welcome to Pokemon World!");
+    }
+    else {
         snprintf(notice, 100, "Nothing in front.");
+    }
 }
 
 static void drawMap(int x, int y, int region) {
@@ -171,18 +180,21 @@ static void drawMap(int x, int y, int region) {
         putchar('\n');
     }
 
-    printf("\n@ Player  H House  P Pokemon Center\n");
-    printf("\nD-Pad: Move");
+    printf("\n@ Player  H House");
+    printf("\nP Pokemon Center  N NPC");
+    printf("\n\nD-Pad: Move");
     printf("\nA: Interact  B: Back");
     printf("\nX: Main Menu  Y: Bag");
     printf("\nSTART: Pause  SELECT: Pokedex");
 }
 
-static void drawMenu(const char *title,
-                     const char **items,
-                     int count,
-                     int selected,
-                     const char *notice) {
+static void drawMenu(
+    const char *title,
+    const char **items,
+    int count,
+    int selected,
+    const char *notice
+) {
     consoleClear();
 
     printf("POKEMON WORLD\n");
@@ -239,6 +251,7 @@ int main(int argc, char **argv) {
         switch (screen) {
 
         case SCREEN_WORLD:
+
             if (down & KEY_UP) {
                 playerDir = DIR_UP;
                 if (isWalkable(playerX, playerY - 1))
@@ -281,19 +294,23 @@ int main(int argc, char **argv) {
             break;
 
         case SCREEN_MAIN:
+
             moveSelection(&selected, 5, down);
 
             if (down & KEY_A) {
-                if (selected == 1)
+                if (selected == 1) {
                     screen = SCREEN_POKEDEX;
+                }
                 else if (selected == 2) {
                     screen = SCREEN_BAG;
                     selected = 0;
                 }
-                else if (selected == 4)
+                else if (selected == 4) {
                     screen = SCREEN_WORLD;
-                else
+                }
+                else {
                     snprintf(notice, 100, "Coming soon!");
+                }
             }
 
             if (down & KEY_B)
@@ -304,6 +321,7 @@ int main(int argc, char **argv) {
             break;
 
         case SCREEN_BAG:
+
             moveSelection(&selected, 8, down);
 
             if (down & KEY_A) {
@@ -335,17 +353,20 @@ int main(int argc, char **argv) {
             break;
 
         case SCREEN_PAUSE:
+
             moveSelection(&selected, 4, down);
 
             if (down & KEY_A) {
-                if (selected == 0 || selected == 3)
+                if (selected == 0 || selected == 3) {
                     screen = SCREEN_WORLD;
+                }
                 else if (selected == 1) {
                     screen = SCREEN_BAG;
                     selected = 0;
                 }
-                else if (selected == 2)
+                else if (selected == 2) {
                     screen = SCREEN_POKEDEX;
+                }
             }
 
             if (down & KEY_B)
@@ -356,7 +377,9 @@ int main(int argc, char **argv) {
             break;
 
         case SCREEN_POKEDEX:
+
             consoleClear();
+
             printf("POKEMON WORLD\n");
             printf("====================\n");
             printf("POKEDEX\n\n");
@@ -367,6 +390,7 @@ int main(int argc, char **argv) {
 
             if (down & (KEY_A | KEY_B))
                 screen = SCREEN_WORLD;
+
             break;
         }
 
