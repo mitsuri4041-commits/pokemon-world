@@ -6,23 +6,16 @@
 
 #define MAP_W 20
 #define MAP_H 12
+#define SAVE_PATH "sdmc:/pokemon_world_save.dat"
+#define SAVE_MAGIC 0x50574C44u
+#define SAVE_VERSION 1u
+
 typedef enum {
     DIR_UP,
     DIR_DOWN,
     DIR_LEFT,
     DIR_RIGHT
 } Direction;
-#define SAVE_PATH "sdmc:/pokemon_world_save.dat"
-#define SAVE_MAGIC 0x50574C44u
-#define SAVE_VERSION 1u
-
-typedef struct {
-    uint32_t magic;
-    uint32_t version;
-    int32_t x;
-    int32_t y;
-    int32_t region;
-} SaveData;
 
 typedef enum {
     SCREEN_WORLD,
@@ -31,6 +24,14 @@ typedef enum {
     SCREEN_PAUSE,
     SCREEN_POKEDEX
 } Screen;
+
+typedef struct {
+    uint32_t magic;
+    uint32_t version;
+    int32_t x;
+    int32_t y;
+    int32_t region;
+} SaveData;
 
 static const char *regionNames[] = {
     "KANTO", "JOHTO", "HOENN", "SINNOH",
@@ -52,6 +53,14 @@ static const char *mapRows[MAP_H] = {
     "####################"
 };
 
+static const char *mainItems[] = {
+    "Pokemon",
+    "Pokedex",
+    "Bag",
+    "Trainer Card",
+    "Back"
+};
+
 static const char *bagItems[] = {
     "Items",
     "Medicine",
@@ -63,14 +72,6 @@ static const char *bagItems[] = {
     "Back"
 };
 
-static const char *mainItems[] = {
-    "Pokemon",
-    "Pokedex",
-    "Bag",
-    "Trainer Card",
-    "Back"
-};
-
 static const char *pauseItems[] = {
     "Resume",
     "Bag",
@@ -79,8 +80,7 @@ static const char *pauseItems[] = {
 };
 
 static bool isWalkable(int x, int y) {
-    if (x < 0 || x >= MAP_W ||
-        y < 0 || y >= MAP_H)
+    if (x < 0 || x >= MAP_W || y < 0 || y >= MAP_H)
         return false;
 
     return mapRows[y][x] == '.';
@@ -117,10 +117,8 @@ static bool loadGame(int *x, int *y, int *region) {
         return false;
 
     if (data.x < 1 || data.x >= MAP_W - 1 ||
-        data.y < 1 || data.y >= MAP_H - 1)
-        return false;
-
-    if (data.region < 0 || data.region >= 7 ||
+        data.y < 1 || data.y >= MAP_H - 1 ||
+        data.region < 0 || data.region >= 7 ||
         !isWalkable(data.x, data.y))
         return false;
 
@@ -131,12 +129,60 @@ static bool loadGame(int *x, int *y, int *region) {
     return true;
 }
 
-static void drawMenu(
-    const char *title,
-    const char **items,
-    int count,
-    int selected
-) {
+static void interact(int x, int y, Direction dir, char *notice) {
+    int tx = x;
+    int ty = y;
+
+    switch (dir) {
+        case DIR_UP:    ty--; break;
+        case DIR_DOWN:  ty++; break;
+        case DIR_LEFT:  tx--; break;
+        case DIR_RIGHT: tx++; break;
+    }
+
+    if (tx < 0 || tx >= MAP_W || ty < 0 || ty >= MAP_H) {
+        snprintf(notice, 100, "Nothing in front.");
+        return;
+    }
+
+    char target = mapRows[ty][tx];
+
+    if (target == 'H')
+        snprintf(notice, 100, "You found a House!");
+    else if (target == 'P')
+        snprintf(notice, 100, "Pokemon Center!");
+    else
+        snprintf(notice, 100, "Nothing in front.");
+}
+
+static void drawMap(int x, int y, int region) {
+    consoleClear();
+
+    printf("POKEMON WORLD\n");
+    printf("Region: %s\n\n", regionNames[region]);
+
+    for (int row = 0; row < MAP_H; row++) {
+        for (int col = 0; col < MAP_W; col++) {
+            if (col == x && row == y)
+                putchar('@');
+            else
+                putchar(mapRows[row][col]);
+        }
+        putchar('\n');
+    }
+
+    printf("\n@ Player  H House  P Pokemon Center\n");
+    printf("\nD-Pad: Move");
+    printf("\nA: Interact  B: Back");
+    printf("\nX: Main Menu  Y: Bag");
+    printf("\nSTART: Pause  SELECT: Pokedex");
+}
+
+static void drawMenu(const char *title,
+                     const char **items,
+                     int count,
+                     int selected,
+                     const char *notice) {
     consoleClear();
 
     printf("POKEMON WORLD\n");
@@ -144,43 +190,24 @@ static void drawMenu(
     printf("%s\n\n", title);
 
     for (int i = 0; i < count; i++) {
-        if (i == selected)
-            printf(" > %s\n", items[i]);
-        else
-            printf("   %s\n", items[i]);
+        printf("%s %s\n",
+            i == selected ? ">" : " ",
+            items[i]);
     }
 
     printf("\nD-Pad: Select");
-    printf("\nA: Confirm");
-    printf("\nB: Back");
+    printf("\nA: Confirm  B: Back");
+
+    if (notice && notice[0] != '\0')
+        printf("\n\n%s", notice);
 }
 
-static void drawWorld(
-    int playerX,
-    int playerY,
-    int region,
-    const char *notice
-) {
-    consoleClear();
+static void moveSelection(int *selected, int count, u32 down) {
+    if (down & KEY_UP)
+        *selected = (*selected + count - 1) % count;
 
-    printf("POKEMON WORLD\n");
-    printf("Region: %s\n\n", regionNames[region]);
-
-    for (int y = 0; y < MAP_H; y++) {
-        for (int x = 0; x < MAP_W; x++) {
-            if (x == playerX && y == playerY)
-                putchar('@');
-            else
-                putchar(mapRows[y][x]);
-        }
-        putchar('\n');
-    }
-
-    printf("\n@ You  H House  P Pokemon Center\n");
-    printf("\nA: Interact  B: Back");
-    printf("\nX: Main Menu  Y: Bag");
-    printf("\nSTART: Pause  SELECT: Pokedex");
-    printf("\n\nStatus: %s\n", notice);
+    if (down & KEY_DOWN)
+        *selected = (*selected + 1) % count;
 }
 
 int main(int argc, char **argv) {
@@ -192,47 +219,49 @@ int main(int argc, char **argv) {
 
     int playerX = 2;
     int playerY = 3;
-    Direction playerDir = DIR_DOWN;
     int region = 0;
-
-    Screen screen = SCREEN_WORLD;
-    Screen previousScreen = SCREEN_WORLD;
-
     int selected = 0;
-    const char *notice = "Welcome to Pokemon World!";
 
-    bool running = true;
+    Direction playerDir = DIR_DOWN;
+    Screen screen = SCREEN_WORLD;
 
-    while (aptMainLoop() && running) {
+    char notice[100] = "Welcome to Pokemon World!";
+
+    while (aptMainLoop()) {
         hidScanInput();
-
         u32 down = hidKeysDown();
 
-        if (screen == SCREEN_WORLD) {
+        if ((down & KEY_START) && screen == SCREEN_WORLD) {
+            screen = SCREEN_PAUSE;
+            selected = 0;
+        }
 
-            int nextX = playerX;
-            int nextY = playerY;
+        switch (screen) {
 
-            if (down & KEY_UP) nextY--;
-            if (down & KEY_DOWN) nextY++;
-            if (down & KEY_LEFT) nextX--;
-            if (down & KEY_RIGHT) nextX++;
-
-            if (isWalkable(nextX, nextY)) {
-                playerX = nextX;
-                playerY = nextY;
+        case SCREEN_WORLD:
+            if (down & KEY_UP) {
+                playerDir = DIR_UP;
+                if (isWalkable(playerX, playerY - 1))
+                    playerY--;
+            }
+            else if (down & KEY_DOWN) {
+                playerDir = DIR_DOWN;
+                if (isWalkable(playerX, playerY + 1))
+                    playerY++;
+            }
+            else if (down & KEY_LEFT) {
+                playerDir = DIR_LEFT;
+                if (isWalkable(playerX - 1, playerY))
+                    playerX--;
+            }
+            else if (down & KEY_RIGHT) {
+                playerDir = DIR_RIGHT;
+                if (isWalkable(playerX + 1, playerY))
+                    playerX++;
             }
 
-            if (down & KEY_A) {
-                char tile = mapRows[playerY][playerX];
-
-                if (tile == 'H')
-                    notice = "You are near your house.";
-                else if (tile == 'P')
-                    notice = "Pokemon Center.";
-                else
-                    notice = "There is nothing here.";
-            }
+            if (down & KEY_A)
+                interact(playerX, playerY, playerDir, notice);
 
             if (down & KEY_X) {
                 screen = SCREEN_MAIN;
@@ -244,186 +273,101 @@ int main(int argc, char **argv) {
                 selected = 0;
             }
 
-            if (down & KEY_START) {
-                screen = SCREEN_PAUSE;
-                selected = 0;
-            }
-
-            if (down & KEY_SELECT) {
+            if (down & KEY_SELECT)
                 screen = SCREEN_POKEDEX;
-            }
-        }
 
-        else if (screen == SCREEN_BAG) {
+            drawMap(playerX, playerY, region);
+            printf("\n\nStatus: %s", notice);
+            break;
 
-            if (down & KEY_UP)
-                selected = (selected + 7) % 8;
-
-            if (down & KEY_DOWN)
-                selected = (selected + 1) % 8;
-
-            if (down & KEY_B) {
-                screen = SCREEN_WORLD;
-            }
+        case SCREEN_MAIN:
+            moveSelection(&selected, 5, down);
 
             if (down & KEY_A) {
-                switch (selected) {
-                    case 0:
-                        notice = "Items section - coming soon.";
-                        break;
-
-                    case 1:
-                        notice = "Medicine section - coming soon.";
-                        break;
-
-                    case 2:
-                        notice = "Poke Balls section - coming soon.";
-                        break;
-
-                    case 3:
-                        notice = "TMs section - coming soon.";
-                        break;
-
-                    case 4:
-                        notice = "Key Items section - coming soon.";
-                        break;
-
-                    case 5:
-                        notice = saveGame(playerX, playerY, region)
-                            ? "Game saved successfully."
-                            : "Save failed.";
-
-                        break;
-
-                    case 6:
-                        notice = loadGame(
-                            &playerX, &playerY, &region
-                        ) ? "Game loaded successfully."
-                          : "No valid save found.";
-
-                        break;
-
-                    case 7:
-                        screen = SCREEN_WORLD;
-                        break;
+                if (selected == 1)
+                    screen = SCREEN_POKEDEX;
+                else if (selected == 2) {
+                    screen = SCREEN_BAG;
+                    selected = 0;
                 }
+                else if (selected == 4)
+                    screen = SCREEN_WORLD;
+                else
+                    snprintf(notice, 100, "Coming soon!");
             }
-        }
-
-        else if (screen == SCREEN_MAIN) {
-
-            if (down & KEY_UP)
-                selected = (selected + 4) % 5;
-
-            if (down & KEY_DOWN)
-                selected = (selected + 1) % 5;
 
             if (down & KEY_B)
                 screen = SCREEN_WORLD;
 
+            drawMenu("MAIN MENU", mainItems, 5,
+                     selected, notice);
+            break;
+
+        case SCREEN_BAG:
+            moveSelection(&selected, 8, down);
+
             if (down & KEY_A) {
-                switch (selected) {
-                    case 0:
-                        notice = "Pokemon Party - coming soon.";
-                        break;
-
-                    case 1:
-                        screen = SCREEN_POKEDEX;
-                        break;
-
-                    case 2:
-                        screen = SCREEN_BAG;
-                        selected = 0;
-                        break;
-
-                    case 3:
-                        notice = "Trainer Card - coming soon.";
-                        break;
-
-                    case 4:
-                        screen = SCREEN_WORLD;
-                        break;
+                if (selected == 5) {
+                    snprintf(notice, 100, "%s",
+                        saveGame(playerX, playerY, region)
+                        ? "Save successful."
+                        : "Save failed.");
+                }
+                else if (selected == 6) {
+                    snprintf(notice, 100, "%s",
+                        loadGame(&playerX, &playerY, &region)
+                        ? "Load successful."
+                        : "Load failed.");
+                }
+                else if (selected == 7) {
+                    screen = SCREEN_WORLD;
+                }
+                else {
+                    snprintf(notice, 100, "Coming soon!");
                 }
             }
-        }
-
-        else if (screen == SCREEN_PAUSE) {
-
-            if (down & KEY_UP)
-                selected = (selected + 3) % 4;
-
-            if (down & KEY_DOWN)
-                selected = (selected + 1) % 4;
 
             if (down & KEY_B)
                 screen = SCREEN_WORLD;
 
+            drawMenu("BAG", bagItems, 8,
+                     selected, notice);
+            break;
+
+        case SCREEN_PAUSE:
+            moveSelection(&selected, 4, down);
+
             if (down & KEY_A) {
-                switch (selected) {
-                    case 0:
-                        screen = SCREEN_WORLD;
-                        break;
-
-                    case 1:
-                        screen = SCREEN_BAG;
-                        selected = 0;
-                        break;
-
-                    case 2:
-                        screen = SCREEN_POKEDEX;
-                        break;
-
-                    case 3:
-                        screen = SCREEN_WORLD;
-                        break;
+                if (selected == 0 || selected == 3)
+                    screen = SCREEN_WORLD;
+                else if (selected == 1) {
+                    screen = SCREEN_BAG;
+                    selected = 0;
                 }
+                else if (selected == 2)
+                    screen = SCREEN_POKEDEX;
             }
-        }
 
-        else if (screen == SCREEN_POKEDEX) {
-            if (down & KEY_B || down & KEY_A)
+            if (down & KEY_B)
                 screen = SCREEN_WORLD;
-        }
 
-        if (screen == SCREEN_WORLD) {
-            drawWorld(
-                playerX, playerY, region, notice
-            );
-        }
+            drawMenu("PAUSE MENU", pauseItems, 4,
+                     selected, notice);
+            break;
 
-        else if (screen == SCREEN_BAG) {
-            drawMenu(
-                "BAG",
-                bagItems,
-                8,
-                selected
-            );
-        }
-
-        else if (screen == SCREEN_MAIN) {
-            drawMenu(
-                "MAIN MENU",
-                mainItems,
-                5,
-                selected
-            );
-        }
-
-        else if (screen == SCREEN_PAUSE) {
-            drawMenu(
-                "PAUSE MENU",
-                pauseItems,
-                4,
-                selected
-            );
-        }
-
-        else if (screen == SCREEN_POKEDEX) {
+        case SCREEN_POKEDEX:
             consoleClear();
-            printf("POKEDEX\n");
+            printf("POKEMON WORLD\n");
             printf("====================\n");
-            printf("Pokedex is coming soon.\n");
-            printf("\nA/B: Back");
+            printf("POKEDEX\n\n");
+            printf("Pokemon discovered: 0\n");
+            printf("Pokemon caught: 0\n");
+            printf("\nPokedex system coming soon.");
+            printf("\n\nA or B: Back");
+
+            if (down & (KEY_A | KEY_B))
+                screen = SCREEN_WORLD;
+            break;
         }
 
         gfxFlushBuffers();
