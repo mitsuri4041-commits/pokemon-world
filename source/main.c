@@ -6,6 +6,12 @@
 
 #define MAP_W 20
 #define MAP_H 12
+typedef enum {
+    DIR_UP,
+    DIR_DOWN,
+    DIR_LEFT,
+    DIR_RIGHT
+} Direction;
 #define SAVE_PATH "sdmc:/pokemon_world_save.dat"
 #define SAVE_MAGIC 0x50574C44u
 #define SAVE_VERSION 1u
@@ -77,7 +83,7 @@ static bool isWalkable(int x, int y) {
         y < 0 || y >= MAP_H)
         return false;
 
-    return mapRows[y][x] != '#';
+    return mapRows[y][x] == '.';
 }
 
 static bool saveGame(int x, int y, int region) {
@@ -186,6 +192,7 @@ int main(int argc, char **argv) {
 
     int playerX = 2;
     int playerY = 3;
+    Direction playerDir = DIR_DOWN;
     int region = 0;
 
     Screen screen = SCREEN_WORLD;
