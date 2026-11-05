@@ -6,14 +6,16 @@ include $(DEVKITARM)/3ds_rules
 
 TARGET := pokemon_world
 SOURCES := source
+INCLUDES := include
 BUILD := build
 
 ARCH := -march=armv6k -mtune=mpcore -mfloat-abi=hard -mtp=soft
 
-CFLAGS := -g -Wall -O2 -mword-relocations \
+CFLAGS := -g -Wall -Wextra -O2 -mword-relocations \
           -ffunction-sections -fdata-sections \
           $(ARCH) -D__3DS__ \
-          -I$(DEVKITPRO)/libctru/include
+          -I$(DEVKITPRO)/libctru/include \
+          -I$(INCLUDES)
 
 LDFLAGS := -specs=3dsx.specs -g $(ARCH) \
            -L$(DEVKITPRO)/libctru/lib
