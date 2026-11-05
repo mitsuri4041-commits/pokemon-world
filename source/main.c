@@ -33,6 +33,13 @@ typedef struct {
     int32_t region;
 } SaveData;
 
+typedef struct {
+    int x;
+    int y;
+    const char *name;
+    const char *dialogue;
+} NPC;
+
 static const char *regionNames[] = {
     "KANTO", "JOHTO", "HOENN", "SINNOH",
     "UNOVA", "KALOS", "ALOLA"
@@ -44,7 +51,7 @@ static const char *mapRows[MAP_H] = {
     "#......####........#",
     "#..................#",
     "#....H.............#",
-    "#.........N........#",
+    "#..................#",
     "#.............P....#",
     "#..................#",
     "#..####............#",
@@ -53,8 +60,26 @@ static const char *mapRows[MAP_H] = {
     "####################"
 };
 
-#define NPC_X 10
-#define NPC_Y 5
+/* NPC SYSTEM */
+static const NPC npcs[] = {
+    {
+        10, 5,
+        "Mira",
+        "Hello, Trainer! Welcome to Pokemon World!"
+    },
+    {
+        4, 7,
+        "Youngster",
+        "I want to become a Pokemon Champion!"
+    },
+    {
+        15, 3,
+        "Researcher",
+        "There are seven regions waiting to be explored."
+    }
+};
+
+#define NPC_COUNT (sizeof(npcs) / sizeof(npcs[0]))
 
 static const char *mainItems[] = {
     "Pokemon",
@@ -82,11 +107,26 @@ static const char *pauseItems[] = {
     "Back"
 };
 
+static bool isNpcAt(int x, int y) {
+    for (int i = 0; i < NPC_COUNT; i++) {
+        if (npcs[i].x == x && npcs[i].y == y)
+            return true;
+    }
+
+    return false;
+}
+
 static bool isWalkable(int x, int y) {
     if (x < 0 || x >= MAP_W || y < 0 || y >= MAP_H)
         return false;
 
-    return mapRows[y][x] == '.';
+    if (mapRows[y][x] != '.')
+        return false;
+
+    if (isNpcAt(x, y))
+        return false;
+
+    return true;
 }
 
 static bool saveGame(int x, int y, int region) {
@@ -132,7 +172,12 @@ static bool loadGame(int *x, int *y, int *region) {
     return true;
 }
 
-static void interact(int x, int y, Direction dir, char *notice) {
+static void interact(
+    int x,
+    int y,
+    Direction dir,
+    char *notice
+) {
     int tx = x;
     int ty = y;
 
@@ -143,9 +188,24 @@ static void interact(int x, int y, Direction dir, char *notice) {
         case DIR_RIGHT: tx++; break;
     }
 
-    if (tx < 0 || tx >= MAP_W || ty < 0 || ty >= MAP_H) {
+    if (tx < 0 || tx >= MAP_W ||
+        ty < 0 || ty >= MAP_H) {
         snprintf(notice, 100, "Nothing in front.");
         return;
+    }
+
+    /* Check NPCs */
+    for (int i = 0; i < NPC_COUNT; i++) {
+        if (npcs[i].x == tx && npcs[i].y == ty) {
+            snprintf(
+                notice,
+                100,
+                "%s: %s",
+                npcs[i].name,
+                npcs[i].dialogue
+            );
+            return;
+        }
     }
 
     char target = mapRows[ty][tx];
@@ -155,9 +215,6 @@ static void interact(int x, int y, Direction dir, char *notice) {
     }
     else if (target == 'P') {
         snprintf(notice, 100, "Welcome to Pokemon Center!");
-    }
-    else if (target == 'N') {
-        snprintf(notice, 100, "Hello, Trainer! Welcome to Pokemon World!");
     }
     else {
         snprintf(notice, 100, "Nothing in front.");
@@ -172,11 +229,17 @@ static void drawMap(int x, int y, int region) {
 
     for (int row = 0; row < MAP_H; row++) {
         for (int col = 0; col < MAP_W; col++) {
-            if (col == x && row == y)
+            if (col == x && row == y) {
                 putchar('@');
-            else
+            }
+            else if (isNpcAt(col, row)) {
+                putchar('N');
+            }
+            else {
                 putchar(mapRows[row][col]);
+            }
         }
+
         putchar('\n');
     }
 
